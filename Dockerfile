@@ -1,11 +1,21 @@
 FROM node:12.18.4-buster
 
-RUN apt-get -y update && apt-get -y install ca-certificates apt-transport-https
+# Buster is archived; default mirrors 404. Use archive.debian.org until HTTPS snapshot repos are added.
+RUN printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99no-check-valid \
+    && printf '%s\n' \
+         'deb http://archive.debian.org/debian buster main' \
+         'deb http://archive.debian.org/debian-security buster/updates main' \
+       > /etc/apt/sources.list \
+    && apt-get -y update \
+    && apt-get -y install ca-certificates apt-transport-https
 
-RUN echo 'deb     [trusted=yes check-valid-until=no] https://snapshot.debian.org/archive/debian/20211201T215332Z/ buster main \n\
-deb-src [trusted=yes check-valid-until=no] https://snapshot.debian.org/archive/debian/20211201T215332Z/ buster main \n\
-deb     [trusted=yes check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20211201T215332Z/ buster/updates main \n\
-deb-src [trusted=yes check-valid-until=no] https://snapshot.debian.org/archive/debian-security/20211201T215332Z/ buster/updates main' >> /etc/apt/sources.list
+# HTTP avoids TLS trust issues between 2019-era CAs and snapshot.debian.org's current certificate chain.
+RUN printf '%s\n' \
+    'deb [trusted=yes check-valid-until=no] http://snapshot.debian.org/archive/debian/20211201T215332Z/ buster main' \
+    'deb-src [trusted=yes check-valid-until=no] http://snapshot.debian.org/archive/debian/20211201T215332Z/ buster main' \
+    'deb [trusted=yes check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20211201T215332Z/ buster/updates main' \
+    'deb-src [trusted=yes check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20211201T215332Z/ buster/updates main' \
+    >> /etc/apt/sources.list
 
 RUN apt-get -y update && apt-get -y install \
     liblog4j2-java=2.11.1-2
@@ -30,7 +40,10 @@ RUN addgroup --system --gid 1001 juicer && \
     adduser juicer --system --uid 1001 --ingroup juicer
 COPY --chown=juicer . /juice-shop
 WORKDIR /juice-shop
-RUN npm install --production --unsafe-perm
+# npm 6 needs strict-ssl false for the registry; native addons/node-gyp need NODE_TLS_REJECT_UNAUTHORIZED for GitHub/nodejs.org.
+RUN npm config set strict-ssl false \
+    && NODE_TLS_REJECT_UNAUTHORIZED=0 npm install --production --unsafe-perm \
+    && npm config delete strict-ssl
 RUN npm dedupe
 RUN rm -rf frontend/node_modules
 RUN mkdir logs && \
