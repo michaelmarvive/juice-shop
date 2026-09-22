@@ -48,6 +48,14 @@ out/
 *.iws
 *.swp
 
+# macOS
+.DS_Store
+
+# Snyk export scratch files
+issues.json
+snyk-export-issues.csv
+scripts/
+
 # Branch ghpages
 assets/
 !frontend/src/assets/
